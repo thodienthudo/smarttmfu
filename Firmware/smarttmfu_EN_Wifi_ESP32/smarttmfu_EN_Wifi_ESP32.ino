@@ -1,4 +1,5 @@
 #include "SendMsg.h"   
+#include "WifiConfig.h"  
  
 void print_wakeup_reason();
 
@@ -8,17 +9,19 @@ void setup() {
   Serial.println("==================================== Begin Program ====================================");
   Serial.println("=======================================================================================");
   print_wakeup_reason(); // Print to Serial the reason ESP32 wake up 
-    
-  setup_EN_Wifi();
-
-  // -- Data -- 
-  int binID = 6;  
-  int sensorValue = random(1, 50);  
-  String token = "eHZKWBUK|khoalnv83|n9f0RLQ";
-  sendMessage_EN_Wifi(binID, sensorValue, token);
-
-  sleep_EN_Wifi();
   
+  setup_EN_Wifi();
+  
+  // -- Data -- 
+  int binID = 7;  
+  int sensorValue = random(1, 50);  
+  // String token = "eHZKWBUK|khoalnv83|n9f0RLQ";
+  String myToken = getTokenKey();
+  Serial.println("myToken: "+myToken);
+  
+  sendMessage_EN_Wifi(binID, sensorValue, myToken);
+  
+  sleep_EN_Wifi();
 }
  
 void loop() {}

@@ -20,7 +20,8 @@
 #include <WiFiAP.h>
 #include <ESPmDNS.h>
 
-
+// extern String token;
 void WifiConfig();
+String getTokenKey();
 
 #endif 

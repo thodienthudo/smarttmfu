@@ -7,7 +7,7 @@
 #include "smarttmMQTT.h" 
   
 int bootCount = 0; 
-int sleepTimerSec = 5;
+int sleepTimerSec = 60;
 
 int ledD4 = 12;
 int ledD5 = 13;
@@ -47,7 +47,6 @@ void sendMessage_EN_Wifi(int binID, int sensorValue, String token){
   // JSON
   StaticJsonDocument<250> JsonDoc;
    
-  
   /* ============================ <Read value and sending msg to Master Node> ============================ */
   // -- Distance Sensor --  
   // VL53L0X_Setup();  
@@ -89,7 +88,6 @@ void sendMessage_EN_Wifi(int binID, int sensorValue, String token){
   // char topic_insert_DB[] = "TrashbinCapstone/Slave/MSG_JSON";    
   // mqttPublish(topic_insert_DB, char_arr);  
 
-
   // ---------------- Method 2: JSON msg ----------------
   JsonDoc["msgID"] = String(bootCount);
   JsonDoc["binID"] = String(binID);
@@ -101,16 +99,15 @@ void sendMessage_EN_Wifi(int binID, int sensorValue, String token){
   JsonDoc["pckRSSI"] = String(packetRssi);
   JsonDoc["pckSNR"] = String(packetSnr);
   JsonDoc["token"] = String(token);
- 
+  
   char msg_buffer[250];
   int msg_bytes = serializeJson(JsonDoc, msg_buffer);
   Serial.print("msg_bytes = ");
   Serial.println(msg_bytes, DEC);
    
-  char topic_insert_DB[] = "TrashbinCapstone/Slave/MSG_JSON";    
+  char topic_insert_DB[] = "smarttmfu.com/EndNode/MSG_JSON";    
   mqttPublish(topic_insert_DB, msg_buffer);  
-
-
+  
   // Blink n times
   for (int i=0; i<3; i++) {
     digitalWrite(2, HIGH);   

@@ -5,20 +5,25 @@
 #define EEPROM_SIZE 200             
 #define WIFI_RESET 0        
 
-
 void setUpAPMode(); 
 void getWifiConfigs();
-void setUpConfigEEPROM();
-void save_Wifi_EEPROM();
-void write_flash(const char* toStore, int startAddr);
-String read_flash(int startAddr);
 
-          
+void getConfigEEPROM();
+void save_Wifi_EEPROM();
+
+String read_flash(int startAddr);
+void write_flash(const char* toStore, int startAddr);
+void delete_flash();
+
+// String extractURL(const char *url_text, const char *pattern1, const char *pattern2);
+// char *extract(const char *const string, const char *const left, const char *const right);
+String toExtract(const char *string, const char *left, const char *right);
+
 unsigned long millis_RESET;
 
 // Set these to your desired credentials.
 const char* host = "smarttmfu";
-const char *ssidAP = "SmartTMfu-v4";
+const char *ssidAP = "SmartTMfu-WifiNode";
 const char *passwordAP = "12345678";
 /*
  * Login page
@@ -98,7 +103,6 @@ const char* loginIndex =
     "}"
 "</script>";
  
- 
 WiFiServer server(80);
 
 String userid = "";
@@ -115,10 +119,13 @@ int getWifiConfig = 0;
 // Both LED turn on while webserver is on
 */
 void WifiConfig() {
-  // /* ------------------ Get EEPROM ------------------ */  
-  setUpConfigEEPROM(); // checking for 10 seconds
+  /* ------------------ Get EEPROM ------------------ */  
+  getConfigEEPROM(); // checking for 10 seconds
   
-  // If no wifi connection
+  /* Use this if you want to delete wifi config manually */  
+  // delete_flash();
+
+  // If can not connect to Wifi 
   if (WiFi.status() != WL_CONNECTED){
     /* ------------------ Get to STA Mode ------------------ */ 
     setUpAPMode();
@@ -131,7 +138,7 @@ void WifiConfig() {
       while(getWifiConfig == 0){
         getWifiConfigs(); // return getWifiConfig = 1 after get Config from webserver
         // Reset if take too long, 180s
-        if (millis() - millis_RESET >= 180000){ 
+        if (millis() - millis_RESET >= 180000){  // 3 mins
           Serial.println("\n\n\n\n\n\nRestarting the ESP"); 
           ESP.restart();            
         } 
@@ -169,6 +176,41 @@ void WifiConfig() {
   }  
 }
 
+// ===================================================================================================
+/* Get config from EEPROM*/
+void getConfigEEPROM(){
+  // Setup epprom
+  pinMode(WIFI_RESET, INPUT); 
+  Serial.println("----------------- getConfigEEPROM ----------------");
+  if (!EEPROM.begin(EEPROM_SIZE)) { 
+    Serial.println("Failed to init EEPROM");
+    delay(1000);
+  }
+  else{
+    userid = read_flash(0); 
+    Serial.print("SSID = ");
+    Serial.println(userid);
+    pwd = read_flash(40); 
+    Serial.print("Password = ");
+    Serial.println(pwd);
+    token = read_flash(80); 
+    Serial.print("Token = ");
+    Serial.println(token);
+  }
+  WiFi.mode(WIFI_STA);  
+  WiFi.begin(userid.c_str(), pwd.c_str());
+  Serial.println("Connecting to: "+userid+"| Password: "+pwd+"| Token: "+token);  
+  // Try to connect for 30s
+  for (int i=0; i<30; i++) { 
+    delay(1000);  
+    Serial.print(".");
+    if(WiFi.status() == WL_CONNECTED){
+      Serial.println("");
+      return;
+    }
+  }  
+}
+
 void setUpAPMode(){
   /* ------------------------------------------ Get to AP Mode ------------------------------------------ */
   delay(10);
@@ -194,6 +236,7 @@ void setUpAPMode(){
   Serial.println("Server started");      
 }
 
+//get config from esp32 web
 void getWifiConfigs(){ 
   /* ------------------------------------------ Get Configs ------------------------------------------ */
   WiFiClient client = server.available();   // listen for incoming clients 
@@ -201,7 +244,7 @@ void getWifiConfigs(){
     Serial.println("\n\n------------------------");     
     Serial.println("New Client.");           // print a message out the serial port
     String currentLine = "";                // make a String to hold incoming data from the client
- 
+
     while (client.connected()) {            // loop while the client's connected
       if (client.available()) {             // if there's bytes to read from the client,
         char c = client.read();             // read a byte, then
@@ -238,34 +281,41 @@ void getWifiConfigs(){
           currentLine += c;      // add it to the end of the currentLine
         } 
         if (currentLine.startsWith("GET /?userid")  && currentLine.endsWith("HTTP/1.1")) { 
-          // MSG: GET /?userid=abc&pwd=abc&tokenkey=abc HTTP/1.1
           // Reset Config  
           index_check = 0;
+          // Extract Configs     
+          // for (int i = 0; i < currentLine.length(); i++) { 
+          //   if (currentLine[i] == '&') {   
+          //     index_check++;     
+          //   } 
+          //   if (index_check==1){
+          //     userid += currentLine[i];     
+          //   }
+          //   if (index_check==3){
+          //     pwd += currentLine[i];     
+          //   }
+          //   if (index_check==5){
+          //     token += currentLine[i];      
+          //     if (currentLine[i] == ' ') {   
+          //       index_check++;     
+          //     }
+          //   }
+          //   if (currentLine[i] == '=') {   
+          //     index_check++;     
+          //   }
+          // }      
+          // close the connection:
           userid = "";
           pwd = "";
-          token = "";   
-          // Extract Configs     
-          for (int i = 0; i < currentLine.length(); i++) { 
-            if (currentLine[i] == '&') {   
-              index_check++;     
-            } 
-            if (index_check==1){
-              userid += currentLine[i];     
-            }
-            if (index_check==3){
-              pwd += currentLine[i];     
-            }
-            if (index_check==5){
-              token += currentLine[i];      
-              if (currentLine[i] == ' ') {   
-                index_check++;     
-              }
-            }
-            if (currentLine[i] == '=') {   
-              index_check++;     
-            }
-          }      
-          // close the connection: 
+          token = "";    
+          
+          // char currentLineArray[] = currentLine;
+          // MSG: GET /?userid=abc&pwd=abc&tokenkey=abc HTTP/1.1
+          userid = toExtract(currentLine.c_str(), "userid=", "&pwd");
+          pwd = toExtract(currentLine.c_str(), "pwd=", "&tokenkey");
+          token = toExtract(currentLine.c_str(), "tokenkey=", " HTTP/1.1");
+          
+          Serial.println("\n--------------- Config from web --------------");
           Serial.println("UserID: "+userid);
           Serial.println("pwd: "+pwd);
           Serial.println("token: "+token);     
@@ -280,36 +330,84 @@ void getWifiConfigs(){
   } 
 }
 
-// ------------------------------------------------- EEPROM ------------------------------------------------- 
-void setUpConfigEEPROM(){
-  pinMode(WIFI_RESET, INPUT); 
-  Serial.println("--getConfigEEPROM--");
-  if (!EEPROM.begin(EEPROM_SIZE)) { 
-    Serial.println("Failed to init EEPROM");
-    delay(1000);
-  }
-  else{
-    userid = read_flash(0); 
-    Serial.print("SSID = ");
-    Serial.println(userid);
-    pwd = read_flash(40); 
-    Serial.print("pwd = ");
-    Serial.println(pwd);
-  }
-  WiFi.mode(WIFI_STA);  
-  WiFi.begin(userid.c_str(), pwd.c_str());
-  Serial.println("Connecting to: "+userid+"| Password: "+pwd);  
-  // Try to connect for 30s
-  for (int i=0; i<30; i++) { 
-    delay(1000);  
-    Serial.print(".");
-    if(WiFi.status() == WL_CONNECTED){
-      Serial.println("");
-      return;
-    }
-  }  
+// Extract
+String toExtract(const char *string, const  char *left, const char *right){
+    char  *head;
+    char  *tail;
+    size_t length;
+    char  *result;
+    if ((string == NULL) || (left == NULL) || (right == NULL))
+        return "";
+    length = strlen(left);
+    head   = strstr(string, left);
+    if (head == NULL)
+        return "";
+    head += length;
+    tail  = strstr(head, right);
+    if (tail == NULL)
+        return String(tail);
+    length = tail - head;
+    result = (char*)malloc(1 + length);
+    if (result == NULL)
+        return "";
+    result[length] = '\0';
+    memcpy(result, head, length);
+    
+    String extracted = String(result);    
+    return extracted;
 }
 
+// char *extract(const char *const string, const char *const left, const char *const right){
+//     char  *head;
+//     char  *tail;
+//     size_t length;
+//     char  *result;
+//     if ((string == NULL) || (left == NULL) || (right == NULL))
+//         return NULL;
+//     length = strlen(left);
+//     head   = strstr(string, left);
+//     if (head == NULL)
+//         return NULL;
+//     head += length;
+//     tail  = strstr(head, right);
+//     if (tail == NULL)
+//         return tail;
+//     length = tail - head;
+//     result = (char*)malloc(1 + length);
+//     if (result == NULL)
+//         return NULL;
+//     result[length] = '\0';
+//     memcpy(result, head, length);    
+//     return result;
+// }
+
+// String extractURL(const char *url_text, const char *pattern1, const char *pattern2){
+//   // const char *s = "aaaaaa<BBBB>TEXT TO EXTRACT</BBBB>aaaaaaaaa";
+//   // const char *PATTERN1 = "<BBBB>";
+//   // const char *PATTERN2 = "</BBBB>";
+
+//   char *target = NULL;
+//   char *start, *end;
+
+//   if (start = strstr(url_text, pattern1)){
+//     start += strlen( pattern1 );
+//     if (end = strstr(start, pattern2)){
+//         target = ( char * )malloc( end - start + 1 );
+//         memcpy(target, start, end - start);
+//         target[end - start] = '\0';
+//     }
+//   }
+//   if(target) printf("%s\n", target);
+
+
+//   String extracted = "";
+//   strcpy(extracted, target);
+//   free(target);
+//   return extracted;
+// }
+
+
+// ------------------------------------------------- EEPROM ------------------------------------------------- 
 void save_Wifi_EEPROM(){
   userid = WiFi.SSID();
   pwd = WiFi.psk();
@@ -317,9 +415,12 @@ void save_Wifi_EEPROM(){
   Serial.println(userid);
   Serial.print("pwd:");
   Serial.println(pwd);
-  Serial.println("Store SSID & password in Flash");
+  Serial.print("token:");
+  Serial.println(token);
+  Serial.println("Store Config in Flash");
   write_flash(userid.c_str(), 0); 
   write_flash(pwd.c_str(), 40); 
+  write_flash(token.c_str(), 80); 
 }
  
 void write_flash(const char* toStore, int startAddr) {
@@ -338,4 +439,17 @@ String read_flash(int startAddr) {
     in[i] = EEPROM.read(startAddr + i);
   }
   return String(in);
+}
+
+void delete_flash(){
+  for (int i = 0; i < 512; i++) {
+    EEPROM.write(i, 0);
+  }
+  EEPROM.commit();
+  delay(500);    
+}
+
+String getTokenKey(){
+  String myTokenKey = read_flash(80);
+  return myTokenKey;
 }
