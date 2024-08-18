@@ -5,6 +5,7 @@ SmartTM is a graduation project for the IoT major of FPT University. The develop
 
 ## Hardware manual
 ### Download Arduino IDE from https://www.arduino.cc/
+### Slide: https://drive.google.com/file/d/1j6vsHrZ5rtWpDyollZhh6zKaNT9Q3x82/view?usp=sharing
 
 ### To use End Node
 
